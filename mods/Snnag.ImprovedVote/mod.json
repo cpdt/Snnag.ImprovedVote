@@ -1,0 +1,33 @@
+{
+    "Name": "Snnag's Improved Vote",
+    "Description": "Improved map/mode voting for Fifty's Server Utils",
+    "Version": "1.0.0",
+    "LoadPriority": 3,
+    "ConVars": [
+        {
+            "Name": "SIV_ENABLE_SKIP",
+            "DefaultValue": "1"
+        },
+        {
+            "Name": "SIV_ENABLE_GAME_VOTE",
+            "DefaultValue": "1"
+        },
+        {
+            "Name": "SIV_MAX_OPTIONS",
+            "DefaultValue": "5"
+        }
+    ],
+    "Scripts": [
+        {
+            "Path": "config.nut",
+            "RunOn": "SERVER"
+        },
+        {
+            "Path": "improvedvote.nut",
+            "RunOn": "SERVER",
+            "ServerCallback": {
+                "After": "Snnags_Improved_Vote_Init"
+            }
+        }
+    ]
+}
