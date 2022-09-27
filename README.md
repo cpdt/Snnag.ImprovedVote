@@ -2,6 +2,8 @@
 
 Improved map/mode voting for [Fifty's Server Utilities](https://northstar.thunderstore.io/package/Fifty/Server_Utilities/).
 
+Use [my ServerUtils fork](https://github.com/cpdt/Snnag.ServerUtils) to fix the map vote poll overlapping other UI elements in the postmatch screen.
+
 ## Features
 
  - Set infinite map/mode combos. Players will be able to vote between a random selection of options.
