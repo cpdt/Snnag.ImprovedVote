@@ -86,11 +86,11 @@ void function ClientDisconnected(entity player)
         if ( selection.len() == 0 )
         {
             // No available selections, repeat the current map and mode
-            GameRules_ChangeMap( GetMapName(), GameRules_GetGameMode() )
+            StartMatch( GetMapName(), GAMETYPE )
         }
         else
         {
-            GameRules_ChangeMap( selection[0][0], selection[0][1] )
+            StartMatch( selection[0][0], selection[0][1] )
         }
     }
 }
@@ -156,7 +156,7 @@ void function Postmatch_Threaded()
     if ( selection.len() == 0 )
     {
         // No available selections, repeat the current map and mode
-        GameRules_ChangeMap( GetMapName(), GameRules_GetGameMode() )
+        StartMatch( GetMapName(), GAMETYPE )
         return
     }
 
@@ -164,7 +164,30 @@ void function Postmatch_Threaded()
     if ( vote_index >= selection.len() ) vote_index = 0
 
     // Lets go
-    GameRules_ChangeMap( selection[vote_index][0], selection[vote_index][1] )
+    StartMatch( selection[vote_index][0], selection[vote_index][1] )
+}
+
+// Copied from _private_lobby.gnut
+void function StartMatch(string map, string mode)
+{
+    try
+    {
+        SetCurrentPlaylist( mode )
+    }
+    catch ( exception )
+    {
+        if ( mode == "speedball" )
+            SetCurrentPlaylist( "lf" )
+
+        print( "Couldn't find playlist for gamemode " + mode )
+    }
+
+    RefreshPlayerTeams( mode )
+
+    if ( !( mode in GAMETYPE_TEXT ) )
+        mode = GetPlaylistGamemodeByIndex( mode, 0 )
+    
+    GameRules_ChangeMap( map, mode )
 }
 
 array< string[2] > function CreateVoteSelection(int max)
@@ -391,4 +414,35 @@ void function CleanUpEntitiesForRoundEnd()
 	svGlobal.levelEnt.Signal( "CleanUpEntitiesForRoundEnd" ) 
 
 	SetPlayerDeathsHidden( false )
+}
+
+// Copied from _private_lobby.gnut
+void function RefreshPlayerTeams(string mode)
+{
+	int maxTeams = GetGamemodeVarOrUseValue( mode, "max_teams", "2" ).tointeger()
+	int maxPlayers = GetGamemodeVarOrUseValue( mode, "max_players", "12" ).tointeger()
+
+	// special case for situations where we wrongly assume ffa teams because there's 2 teams/2 players
+	if ( maxPlayers == maxTeams && maxTeams > 2 )
+	{
+		array<entity> players = GetPlayerArray()
+		for ( int i = 0; i < players.len(); i++ )
+			SetTeam( players[ i ], i + 7 ) // 7 is the lowest ffa team
+	}
+	else
+	{
+		bool lastSetMilitia = false
+		foreach ( entity player in GetPlayerArray() )
+		{
+			if ( player.GetTeam() == TEAM_MILITIA || player.GetTeam() == TEAM_IMC )
+				continue
+				
+			if ( lastSetMilitia ) // ensure roughly evenish distribution
+				SetTeam( player, TEAM_IMC )
+			else
+				SetTeam( player, TEAM_MILITIA )
+				
+			lastSetMilitia = !lastSetMilitia
+		}
+	}
 }
