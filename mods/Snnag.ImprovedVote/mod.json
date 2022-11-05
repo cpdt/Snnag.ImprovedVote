@@ -1,7 +1,7 @@
 {
     "Name": "Snnag's Improved Vote",
     "Description": "Improved map/mode voting for Fifty's Server Utils",
-    "Version": "1.0.0",
+    "Version": "1.0.1",
     "LoadPriority": 3,
     "ConVars": [
         {
@@ -15,6 +15,10 @@
         {
             "Name": "SIV_MAX_OPTIONS",
             "DefaultValue": "5"
+        },
+        {
+            "Name": "SIV_POSTMATCH_LENGTH",
+            "DefaultValue": "10"
         }
     ],
     "Scripts": [

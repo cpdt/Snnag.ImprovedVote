@@ -27,6 +27,7 @@ fit into a ConVar will go.
  - `SIV_ENABLE_SKIP` enables or disables `!skip`. Default: `"1"` (enabled)
  - `SIV_ENABLE_GAME_VOTE` enables or disables voting. When disabled, a random map/mode combo will be picked. Default: `"1"` (enabled)
  - `SIV_MAX_OPTIONS` sets the max number of combos presented to players. Should be no more than 7. Default: `"5"`
+ - `SIV_POSTMATCH_LENGTH` sets the duration the postmatch screen and vote are shown. Default: `"10"`
 
 ## License
 

@@ -34,7 +34,8 @@ void function Snnags_Improved_Vote_Init()
         }
     }
 
-    thread WatchGameStates_Threaded()
+    AddCallback_GameStateEnter( eGameState.Postmatch, Postmatch_Threaded )
+    AddCallback_OnClientDisconnected( ClientDisconnected )
 }
 
 // !skip
@@ -75,6 +76,25 @@ void function SIV_Skip_Command( entity player, array< string > args )
     }
 }
 
+void function ClientDisconnected(entity player)
+{
+    // If all players have now left, skip to the next match.
+    if ( GetPlayerArray().len() == 0 )
+    {
+        array< string[2] > selection = CreateVoteSelection(1)
+        
+        if ( selection.len() == 0 )
+        {
+            // No available selections, repeat the current map and mode
+            GameRules_ChangeMap( GetMapName(), GameRules_GetGameMode() )
+        }
+        else
+        {
+            GameRules_ChangeMap( selection[0][0], selection[0][1] )
+        }
+    }
+}
+
 void function SkipMap_Threaded()
 {
     // Based on _gamestate_mp.nut
@@ -93,19 +113,7 @@ void function SkipMap_Threaded()
     SetGameState(eGameState.Postmatch)
 }
 
-void function WatchGameStates_Threaded()
-{
-    // This loop is required since AddCallback_GameStateEnter( eGameState.Postmatch ) triggers around 5s AFTER
-    // the postmatch screen is displayed, but we need to maximize time the poll is shown for.
-    while ( true ) 
-    {
-        svGlobal.levelEnt.WaitSignal("GameStateChanged")
-        if ( GetGameState() == eGameState.Postmatch )
-            thread EndOfMatchVote_Threaded(ROUND_WINNING_KILL_REPLAY_POST_DEATH_TIME + 2.0 + GAME_POSTMATCH_LENGTH - 0.1)
-    }
-}
-
-void function EndOfMatchVote_Threaded(float duration)
+void function Postmatch_Threaded()
 {
     bool vote_enabled = GetConVarBool("SIV_ENABLE_GAME_VOTE")
     if ( !vote_enabled && GetConVarBool("ns_should_return_to_lobby") )
@@ -116,7 +124,7 @@ void function EndOfMatchVote_Threaded(float duration)
     array< string[2] > selection
     int vote_index
 
-    bool can_vote = vote_enabled && !are_all_same_map && !are_all_same_mode
+    bool can_vote = vote_enabled && !(are_all_same_map && are_all_same_mode)
     if ( can_vote && FSU_CanCreatePoll() )
     {
         selection = CreateVoteSelection(GetConVarInt("SIV_MAX_OPTIONS"))
@@ -125,6 +133,7 @@ void function EndOfMatchVote_Threaded(float duration)
         // One entry: no need to vote
         if ( selection.len() > 1 )
         {
+            float duration = GetConVarFloat("SIV_POSTMATCH_LENGTH")
             FSU_CreatePoll( FormatEntries(selection), "Next match vote", duration, false )
             Chat_ServerBroadcast("Use \x1b[113m\"!vote <number>\"\x1b[0m to vote for the next match.")
 
@@ -135,13 +144,13 @@ void function EndOfMatchVote_Threaded(float duration)
         }
         else
         {
-            wait duration
+            wait GAME_POSTMATCH_LENGTH
         }
     }
     else
     {
         selection = CreateVoteSelection(1)
-        wait duration
+        wait GAME_POSTMATCH_LENGTH
     }
 
     if ( selection.len() == 0 )
