@@ -1,19 +1,44 @@
-global function Snnags_Improved_Vote_Init
+global function SIV_Init
 
 table<string, string> map_names
 table<string, string> mode_names
 
+int skip_cooldown_iteration
 array<entity> players_skip_voting
+array<entity> players_showing_skip
 
 bool are_all_same_map
 bool are_all_same_mode
 
 bool has_started_vote
+table<entity, int> player_votes
+array<string> vote_options
+array<entity> players_showing_vote
 
-void function Snnags_Improved_Vote_Init()
+void function SIV_Init()
 {
     if ( GetConVarBool("SIV_ENABLE_SKIP") )
-        FSU_RegisterCommand("skip", "\x1b[113m" + FSU_GetString("FSU_PREFIX") + "skip\x1b[0m If enough players vote the current map will be skipped", "", SIV_Skip_Command)
+    {
+        FSCC_CommandStruct command
+        command.m_UsageUser = "skip"
+        command.m_UsageAdmin = "skip"
+        command.m_Description = "Vote to skip to the end of the current match."
+        command.m_Group = "VOTE"
+        command.m_Abbreviations = []
+        command.Callback = SIV_CommandCallback_Skip
+        FSCC_RegisterCommand("skip", command)
+    }
+    if ( GetConVarBool("SIV_ENABLE_GAME_VOTE") )
+    {
+        FSCC_CommandStruct command
+        command.m_UsageUser = "vote <number>"
+        command.m_UsageAdmin = "vote <number>"
+        command.m_Description = "Vote for the next match."
+        command.m_Group = "VOTE"
+        command.m_Abbreviations = ["v"]
+        command.Callback = SIV_CommandCallback_Vote
+        FSCC_RegisterCommand("vote", command)
+    }
 
     if ( GetMapName() == "mp_lobby" ) return
 
@@ -22,9 +47,9 @@ void function Snnags_Improved_Vote_Init()
     are_all_same_map = true
     are_all_same_mode = true
 
-    if ( SIV_PLAYLIST.len() > 0 ) {
+    if ( SIV_PLAYLIST.len() > 0 )
+    {
         string[2] first_entry = SIV_PLAYLIST[0]
-
         foreach ( entry in SIV_PLAYLIST )
         {
             if ( entry[0] != first_entry[0] )
@@ -39,47 +64,172 @@ void function Snnags_Improved_Vote_Init()
 }
 
 // !skip
-void function SIV_Skip_Command( entity player, array< string > args )
+void function SIV_CommandCallback_Skip( entity player, array< string > args )
 {
     if ( GetMapName() == "mp_lobby" )
     {
-        Chat_ServerPrivateMessage(player, "Can't skip in lobby", false)
+        FSU_PrivateChatMessage(player, "%ECan't skip in lobby.")
         return
     }
 
     if ( GetGameState() > eGameState.Playing )
     {
-        Chat_ServerPrivateMessage(player, "Can't skip in this game state", false)
+        FSU_PrivateChatMessage(player, "%ECan't skip right now.")
         return
     }
 
     if ( players_skip_voting.find(player) != -1 )
     {
-        Chat_ServerPrivateMessage(player, "You have already voted!", false)
+        FSU_PrivateChatMessage(player, "%EYou have already voted!")
         return
     }
 
     players_skip_voting.append(player)
 
-    int required_players = int(GetPlayerArray().len() * FSU_GetFloat("FSU_MAPCHANGE_FRACTION"))
-    if ( required_players == 0 ) required_players = 1
+    int player_count = GetPlayerArray().len()
+    int required_players = int(player_count * GetConVarFloat("SIV_MAPCHANGE_FRACTION"))
+    if ( required_players < 2 ) required_players = 2
+    if ( required_players > player_count ) required_players = player_count
 
-    Chat_ServerBroadcast("\x1b[113m[" + players_skip_voting.len() + "/" + required_players + "]\x1b[0m players want to skip this map (!skip)")
-    
+    string vote_description = "[" + players_skip_voting.len() + "/" + required_players + "]"
+
+    foreach ( entity player in GetPlayerArray() )
+    {
+        if ( players_showing_skip.find(player) == -1 )
+        {
+            NSCreateStatusMessageOnPlayer(player, vote_description, "skip votes (!skip)", "siv_skip_votes")
+            players_showing_skip.append(player)
+        }
+        else
+        {
+            NSEditStatusMessageOnPlayer(player, vote_description, "skip votes (!skip)", "siv_skip_votes")
+        }
+    }
+
     if ( players_skip_voting.len() >= required_players )
     {
+        foreach ( entity player in GetPlayerArray() )
+        {
+            NSSendAnnouncementMessageToPlayer(player, "MATCH ENDING", "Match ending due to skip votes.", <1,0,0>, 0, 1)
+        }
+
         thread SkipMap_Threaded()
     }
-    else
+    else if ( players_skip_voting.len() == 1 )
     {
-        Chat_ServerBroadcast("\x1b[113m[" + players_skip_voting.len() + "/" + required_players + "]\x1b[0m players want to skip this map (!skip)")
+        // Show an information box if this is the first player to skip.
+        // Ensures players aren't overwhelmed with information boxes.
+        foreach ( entity player in GetPlayerArray() )
+        {
+            if ( player != players_showing_skip[0] )
+            {
+                NSSendInfoMessageToPlayer(player, "Tip: you can vote to skip this match by entering '!skip' into chat.")
+            }
+        }
+    }
+
+    if ( players_skip_voting.len() < required_players )
+    {
+        FSU_PrivateChatMessage(player, "%SYour vote has been counted!")
+    }
+
+    thread SkipCooldownIteration_Threaded()
+}
+
+// !vote
+void function SIV_CommandCallback_Vote( entity player, array< string > args )
+{
+    if (!has_started_vote)
+    {
+        FSU_PrivateChatMessage(player, "%EVoting has not started yet.")
+        return
+    }
+    if (args.len() == 0)
+    {
+        FSU_PrivateChatMessage(player, "%ENo argument! %TWhich selection do you want to vote for?")
+        return
+    }
+    
+    int vote_index = args[0].tointeger() - 1
+    if ( vote_index < 0 || vote_index >= vote_options.len() )
+    {
+        FSU_PrivateChatMessage(player, "%EInvalid argument.")
+        return
+    }
+
+    player_votes[player] <- vote_index
+    FSU_PrivateChatMessage(player, "%SYour vote for %H" + vote_options[vote_index] + "%S has been counted!")
+
+    UpdateVoteIndicator()
+    UpdateVoteDisplay()
+}
+
+void function UpdateVoteIndicator()
+{
+    string vote_description = "[" + player_votes.len() + "/" + GetPlayerArray().len() + "]"
+
+    foreach ( entity player in GetPlayerArray() )
+    {
+        if ( players_showing_vote.find(player) == -1 )
+        {
+            NSCreateStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
+            players_showing_vote.append(player)
+        }
+        else
+        {
+            NSEditStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
+        }
+    }
+}
+
+array<int> function CountVotes()
+{
+    array<int> votes_counted
+    foreach ( option in vote_options )
+        votes_counted.append(0)
+    
+    foreach ( player, index in player_votes )
+        votes_counted[index]++
+
+    return votes_counted
+}
+
+void function UpdateVoteDisplay()
+{
+    array<int> counts = CountVotes()
+
+    string poll_text = "Vote for the next match in chat with !vote:"
+    foreach ( index, option in vote_options )
+    {
+        poll_text += "\n" + (index + 1) + ". " + option
+
+        if ( counts[index] == 1 )
+            poll_text += " (1 vote)"
+        else if ( counts[index] > 1 )
+            poll_text += " (" + counts[index] + " votes)"
+    }
+
+    float duration = GetConVarFloat("SIV_POSTMATCH_LENGTH")
+
+    foreach ( entity player in GetPlayerArray() )
+    {
+        SendHudMessage(player, poll_text, 0.3, 0.1, 240, 180, 40, 230, 0, duration, 0.2)
     }
 }
 
 void function ClientDisconnected(entity player)
 {
+    // If the player skip voted, remove them from the list.
+    int skip_voting_index = players_skip_voting.find(player)
+    if ( skip_voting_index != -1 )
+        players_skip_voting.remove(skip_voting_index)
+    
+    int showing_skip_index = players_showing_skip.find(player)
+    if ( showing_skip_index != -1 )
+        players_showing_skip.remove(showing_skip_index)
+
     // If all players have now left, skip to the next match.
-    if ( GetPlayerArray().len() == 0 )
+    if ( GetPlayerArray().len() <= 1 )
     {
         array< string[2] > selection = CreateVoteSelection(1)
         
@@ -95,21 +245,44 @@ void function ClientDisconnected(entity player)
     }
 }
 
+void function SkipCooldownIteration_Threaded()
+{
+    float cooldown_length = GetConVarFloat("SIV_SKIP_VOTE_LENGTH")
+
+    skip_cooldown_iteration++
+    int iteration = skip_cooldown_iteration
+
+    wait cooldown_length
+
+    // Do not clear the skip if this is not the latest cooldown thread.
+    if ( skip_cooldown_iteration != iteration )
+        return
+
+    foreach ( entity player in players_showing_skip )
+    {
+        NSDeleteStatusMessageOnPlayer(player, "siv_skip_votes")
+    }
+    players_skip_voting = []
+    players_showing_skip = []
+}
+
 void function SkipMap_Threaded()
 {
+    wait 2.0
+
     // Based on _gamestate_mp.nut
     foreach ( entity player in GetPlayerArray() )
     {
         player.FreezeControlsOnServer()
-        ScreenFadeToBlackForever(player, 4.0)
+        ScreenFadeToBlackForever(player, 2.0)
     }
 
-    wait 4.0
+    wait 2.0
     CleanUpEntitiesForRoundEnd()
 
     foreach( entity player in GetPlayerArray() )
-			player.UnfreezeControlsOnServer()
-    
+	 	player.UnfreezeControlsOnServer()
+     
     SetGameState(eGameState.Postmatch)
 }
 
@@ -125,7 +298,7 @@ void function Postmatch_Threaded()
     int vote_index
 
     bool can_vote = vote_enabled && !(are_all_same_map && are_all_same_mode)
-    if ( can_vote && FSU_CanCreatePoll() )
+    if ( can_vote )
     {
         selection = CreateVoteSelection(GetConVarInt("SIV_MAX_OPTIONS"))
 
@@ -133,17 +306,28 @@ void function Postmatch_Threaded()
         // One entry: no need to vote
         if ( selection.len() > 1 )
         {
-            float duration = GetConVarFloat("SIV_POSTMATCH_LENGTH")
-            FSU_CreatePoll( FormatEntries(selection), "Next match vote", duration, false )
-            Chat_ServerBroadcast("Use \x1b[113m\"!vote <number>\"\x1b[0m to vote for the next match.")
+            vote_options = FormatEntries(selection)
 
-            wait duration
+            has_started_vote = true
 
-            vote_index = FSU_GetPollResultIndex()
-            if ( vote_index == -1 ) vote_index = 0
+            UpdateVoteIndicator()
+            UpdateVoteDisplay()
+
+            wait GetConVarFloat("SIV_POSTMATCH_LENGTH")
+            
+            array<int> votes_counted = CountVotes()
+            
+            int max_votes
+            foreach ( index, count in votes_counted )
+            {
+                if ( count > max_votes )
+                {
+                    vote_index = index
+                    max_votes = count
+                }
+            }
         }
-        else
-        {
+        else {
             wait GAME_POSTMATCH_LENGTH
         }
     }
@@ -159,9 +343,6 @@ void function Postmatch_Threaded()
         StartMatch( GetMapName(), GAMETYPE )
         return
     }
-
-    // Make sure vote index is in range (just in case!)
-    if ( vote_index >= selection.len() ) vote_index = 0
 
     // Lets go
     StartMatch( selection[vote_index][0], selection[vote_index][1] )
@@ -204,7 +385,7 @@ array< string[2] > function CreateVoteSelection(int max)
     //   1. Copy the valid entry list to a temp list.
     //   2. Repeatedly, until the temp list is empty or the vote list == max:
     //      1. Pick a random entry from the temp list and add to the vote list
-    //      2. Remove the netry from the valid entry list
+    //      2. Remove the entry from the valid entry list
     //      3. Remove all entries in the temp list with a matching map
     //         (can skip if are_all_same_map is true)
     //      4. Remove all entries in the temp list with a matching mode
@@ -363,6 +544,7 @@ void function InitMapModeNames()
     mode_names["tffa"] <- "Titan FFA"
     mode_names["tt"] <- "Titan Tag"
     mode_names["sp_coop"] <- "Campaign Coop"
+    mode_names["fw"] <- "Frontier War"
 }
 
 string function LocalizeMap(string map)

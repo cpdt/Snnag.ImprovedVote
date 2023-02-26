@@ -19,6 +19,14 @@
         {
             "Name": "SIV_POSTMATCH_LENGTH",
             "DefaultValue": "10"
+        },
+        {
+            "Name": "SIV_MAPCHANGE_FRACTION",
+            "DefaultValue": "0.6"
+        },
+        {
+            "Name": "SIV_SKIP_VOTE_LENGTH",
+            "DefaultValue": "60"
         }
     ],
     "Scripts": [
@@ -30,7 +38,7 @@
             "Path": "improvedvote.nut",
             "RunOn": "SERVER",
             "ServerCallback": {
-                "After": "Snnags_Improved_Vote_Init"
+                "After": "SIV_Init"
             }
         }
     ]
