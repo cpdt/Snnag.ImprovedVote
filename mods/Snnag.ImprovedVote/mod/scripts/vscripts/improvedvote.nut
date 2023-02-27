@@ -11,9 +11,9 @@ bool are_all_same_map
 bool are_all_same_mode
 
 bool has_started_vote
+float vote_end_time
 table<entity, int> player_votes
 array<string> vote_options
-array<entity> players_showing_vote
 
 void function SIV_Init()
 {
@@ -160,27 +160,26 @@ void function SIV_CommandCallback_Vote( entity player, array< string > args )
     player_votes[player] <- vote_index
     FSU_PrivateChatMessage(player, "%SYour vote for %H" + vote_options[vote_index] + "%S has been counted!")
 
-    UpdateVoteIndicator()
     UpdateVoteDisplay()
 }
 
-void function UpdateVoteIndicator()
-{
-    string vote_description = "[" + player_votes.len() + "/" + GetPlayerArray().len() + "]"
-
-    foreach ( entity player in GetPlayerArray() )
-    {
-        if ( players_showing_vote.find(player) == -1 )
-        {
-            NSCreateStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
-            players_showing_vote.append(player)
-        }
-        else
-        {
-            NSEditStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
-        }
-    }
-}
+// void function UpdateVoteIndicator()
+// {
+//     string vote_description = "[" + player_votes.len() + "/" + GetPlayerArray().len() + "]"
+// 
+//     foreach ( entity player in GetPlayerArray() )
+//     {
+//         if ( players_showing_vote.find(player) == -1 )
+//         {
+//             NSCreateStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
+//             players_showing_vote.append(player)
+//         }
+//         else
+//         {
+//             NSEditStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
+//         }
+//     }
+// }
 
 array<int> function CountVotes()
 {
@@ -306,14 +305,15 @@ void function Postmatch_Threaded()
         // One entry: no need to vote
         if ( selection.len() > 1 )
         {
+            float duration = GetConVarFloat("SIV_POSTMATCH_LENGTH")
             vote_options = FormatEntries(selection)
 
             has_started_vote = true
+            vote_end_time = Time() + duration
 
-            UpdateVoteIndicator()
             UpdateVoteDisplay()
 
-            wait GetConVarFloat("SIV_POSTMATCH_LENGTH")
+            wait duration
             
             array<int> votes_counted = CountVotes()
             

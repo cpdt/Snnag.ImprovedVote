@@ -18,7 +18,7 @@
         },
         {
             "Name": "SIV_POSTMATCH_LENGTH",
-            "DefaultValue": "10"
+            "DefaultValue": "15"
         },
         {
             "Name": "SIV_MAPCHANGE_FRACTION",
