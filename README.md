@@ -2,8 +2,6 @@
 
 Improved map/mode voting for [Fifty's Server Utilities](https://northstar.thunderstore.io/package/Fifty/Server_Utilities/).
 
-Use [my ServerUtils fork](https://github.com/cpdt/Snnag.ServerUtils) to fix the map vote poll overlapping other UI elements in the postmatch screen.
-
 ## Features
 
  - Set infinite map/mode combos. Players will be able to vote between a random selection of options.
@@ -27,7 +25,9 @@ fit into a ConVar will go.
  - `SIV_ENABLE_SKIP` enables or disables `!skip`. Default: `"1"` (enabled)
  - `SIV_ENABLE_GAME_VOTE` enables or disables voting. When disabled, a random map/mode combo will be picked. Default: `"1"` (enabled)
  - `SIV_MAX_OPTIONS` sets the max number of combos presented to players. Should be no more than 7. Default: `"5"`
- - `SIV_POSTMATCH_LENGTH` sets the duration the postmatch screen and vote are shown. Default: `"10"`
+ - `SIV_POSTMATCH_LENGTH` sets the duration the postmatch screen and vote are shown. Default: `"15"`
+ - `SIV_MAPCHANGE_FRACTION` sets the fraction of players that skip vote. Default: `"0.6"`
+ - `SIV_SKIP_VOTE_LENGTH` sets the duration that skip votes will run for. Default: `"60"`
 
 ## License
 

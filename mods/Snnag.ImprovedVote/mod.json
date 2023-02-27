@@ -1,7 +1,7 @@
 {
     "Name": "Snnag's Improved Vote",
     "Description": "Improved map/mode voting for Fifty's Server Utils",
-    "Version": "1.0.1",
+    "Version": "2.0.0",
     "LoadPriority": 3,
     "ConVars": [
         {
