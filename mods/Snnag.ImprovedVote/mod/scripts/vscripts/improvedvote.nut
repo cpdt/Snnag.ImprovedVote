@@ -163,24 +163,6 @@ void function SIV_CommandCallback_Vote( entity player, array< string > args )
     UpdateVoteDisplay()
 }
 
-// void function UpdateVoteIndicator()
-// {
-//     string vote_description = "[" + player_votes.len() + "/" + GetPlayerArray().len() + "]"
-// 
-//     foreach ( entity player in GetPlayerArray() )
-//     {
-//         if ( players_showing_vote.find(player) == -1 )
-//         {
-//             NSCreateStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
-//             players_showing_vote.append(player)
-//         }
-//         else
-//         {
-//             NSEditStatusMessageOnPlayer(player, vote_description, "votes (!skip)", "siv_match_votes")
-//         }
-//     }
-// }
-
 array<int> function CountVotes()
 {
     array<int> votes_counted
